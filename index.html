@@ -91,9 +91,13 @@
                     <label for="taskTitle" class="block text-sm font-medium text-slate-600 mb-1">標題</label>
                     <input type="text" id="taskTitle" name="taskTitle" required class="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500" placeholder="例如：完成專案報告">
                 </div>
-                <div class="mb-6">
+                <div class="mb-4">
                     <label for="taskDesc" class="block text-sm font-medium text-slate-600 mb-1">描述 (可選)</label>
                     <textarea id="taskDesc" name="taskDesc" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500" placeholder="為您的任務添加更多細節..."></textarea>
+                </div>
+                <div class="mb-6">
+                    <label for="taskPIC" class="block text-sm font-medium text-slate-600 mb-1">負責人 (PIC)</label>
+                    <input type="text" id="taskPIC" name="taskPIC" class="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500" placeholder="例如：王小明">
                 </div>
                 <div class="flex justify-end gap-3">
                     <button type="button" id="cancelBtn" class="bg-slate-200 text-slate-700 font-semibold py-2 px-4 rounded-lg hover:bg-slate-300 transition-colors">取消</button>
@@ -162,28 +166,48 @@
             // 創建任務卡片的 HTML 結構
             const createTaskCard = (task) => {
                 const card = document.createElement('div');
-                card.className = 'bg-white p-4 rounded-lg shadow-sm mb-4 cursor-grab active:cursor-grabbing';
+                card.className = 'bg-white p-4 rounded-lg shadow-sm mb-4 cursor-grab active:cursor-grabbing flex flex-col';
                 card.draggable = true;
                 card.dataset.taskId = task.id;
+
+                // 主要內容區域
+                const mainContent = document.createElement('div');
+                mainContent.className = 'flex-grow';
 
                 const title = document.createElement('h3');
                 title.className = 'font-semibold mb-1';
                 title.textContent = task.title;
+                mainContent.appendChild(title);
 
-                const desc = document.createElement('p');
-                desc.className = 'text-sm text-slate-600';
-                desc.textContent = task.description;
+                if (task.description) {
+                    const desc = document.createElement('p');
+                    desc.className = 'text-sm text-slate-600 whitespace-pre-wrap break-words';
+                    desc.textContent = task.description;
+                    mainContent.appendChild(desc);
+                }
+
+                // 頁腳區域 (負責人, 刪除按鈕)
+                const footer = document.createElement('div');
+                footer.className = 'flex justify-between items-center mt-4 pt-2 border-t border-slate-100';
+
+                const picDisplay = document.createElement('span');
+                picDisplay.className = 'text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-full';
+                if (task.pic) {
+                    picDisplay.textContent = `負責人: ${task.pic}`;
+                } else {
+                    picDisplay.style.display = 'none'; // 如果沒有負責人則隱藏
+                }
                 
                 const deleteBtn = document.createElement('button');
-                deleteBtn.className = 'text-xs text-red-500 hover:text-red-700 float-right mt-1';
+                deleteBtn.className = 'text-xs text-red-500 hover:text-red-700';
                 deleteBtn.textContent = '刪除';
                 deleteBtn.onclick = () => deleteTask(task.id);
 
-                card.appendChild(title);
-                if (task.description) {
-                    card.appendChild(desc);
-                }
-                card.appendChild(deleteBtn);
+                footer.appendChild(picDisplay);
+                footer.appendChild(deleteBtn);
+                
+                card.appendChild(mainContent);
+                card.appendChild(footer);
                 
                 // 添加拖曳事件監聽器
                 card.addEventListener('dragstart', handleDragStart);
@@ -200,6 +224,7 @@
                     id: `task-${Date.now()}`,
                     title: taskForm.taskTitle.value.trim(),
                     description: taskForm.taskDesc.value.trim(),
+                    pic: taskForm.taskPIC.value.trim(), // 新增 PIC 欄位
                 };
                 
                 if (newTask.title) {
@@ -289,3 +314,4 @@
     </script>
 </body>
 </html>
+
