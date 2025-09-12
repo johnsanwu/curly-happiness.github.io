@@ -134,12 +134,20 @@
     <script type="module">
         // 引入 Firebase SDK
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Firebase 設定 ---
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        // **步驟 1: 已更新為您提供的 Firebase 專案設定**
+        const firebaseConfig = {
+          apiKey: "AIzaSyAYefDi9Njm_hsJavgup05WyxhPlVIGlAA",
+          authDomain: "curly-happiness.firebaseapp.com",
+          projectId: "curly-happiness",
+          storageBucket: "curly-happiness.firebasestorage.app",
+          messagingSenderId: "556696470832",
+          appId: "1:556696470832:web:fb01e7db40f3f5cc8c34f5"
+        };
+
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
@@ -163,26 +171,24 @@
         const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
         const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
 
-
         // --- 驗證與初始化 ---
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 currentUserId = user.uid;
                 userIdDisplay.textContent = currentUserId;
                 
-                // 設定 Firestore 集合的路徑
-                tasksCollection = collection(db, `/artifacts/${appId}/public/data/tasks`);
+                // **步驟 2: 修改集合路徑**
+                // 因為不再有 appId，我們直接使用一個固定的集合名稱，例如 'tasks'
+                tasksCollection = collection(db, `tasks`);
                 
                 // 設置即時監聽器
                 setupRealtimeListener();
 
             } else {
                  try {
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        await signInWithCustomToken(auth, __initial_auth_token);
-                    } else {
-                        await signInAnonymously(auth);
-                    }
+                    // **步驟 3: 簡化登入邏輯**
+                    // 在 GitHub Pages 環境中，我們只使用匿名登入
+                    await signInAnonymously(auth);
                 } catch (error) {
                     console.error("驗證失敗:", error);
                     userIdDisplay.textContent = "驗證錯誤";
