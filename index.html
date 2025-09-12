@@ -106,6 +106,14 @@
                     <label for="taskDesc" class="block text-sm font-medium text-slate-600 mb-1">描述 (可選)</label>
                     <textarea id="taskDesc" name="taskDesc" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500" placeholder="為您的任務添加更多細節..."></textarea>
                 </div>
+                 <div class="mb-4">
+                    <label for="taskPriority" class="block text-sm font-medium text-slate-600 mb-1">優先權</label>
+                    <select id="taskPriority" name="taskPriority" class="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white">
+                        <option value="medium">中</option>
+                        <option value="high">高</option>
+                        <option value="low">低</option>
+                    </select>
+                </div>
                 <div class="mb-6">
                     <label for="taskPIC" class="block text-sm font-medium text-slate-600 mb-1">負責人 (PIC)</label>
                     <input type="text" id="taskPIC" name="taskPIC" class="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500" placeholder="例如：王小明">
@@ -138,14 +146,13 @@
         import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Firebase 設定 ---
-        // **步驟 1: 已更新為您提供的 Firebase 專案設定**
         const firebaseConfig = {
           apiKey: "AIzaSyAYefDi9Njm_hsJavgup05WyxhPlVIGlAA",
           authDomain: "curly-happiness.firebaseapp.com",
           projectId: "curly-happiness",
           storageBucket: "curly-happiness.firebasestorage.app",
           messagingSenderId: "556696470832",
-          appId: "1:556696470832:web:fb01e7db40f3f5cc8c34f5"
+          appId: "1:556696470e7db40f3f5cc8c34f5"
         };
 
         const app = initializeApp(firebaseConfig);
@@ -177,17 +184,12 @@
                 currentUserId = user.uid;
                 userIdDisplay.textContent = currentUserId;
                 
-                // **步驟 2: 修改集合路徑**
-                // 因為不再有 appId，我們直接使用一個固定的集合名稱，例如 'tasks'
                 tasksCollection = collection(db, `tasks`);
                 
-                // 設置即時監聽器
                 setupRealtimeListener();
 
             } else {
                  try {
-                    // **步驟 3: 簡化登入邏輯**
-                    // 在 GitHub Pages 環境中，我們只使用匿名登入
                     await signInAnonymously(auth);
                 } catch (error) {
                     console.error("驗證失敗:", error);
@@ -227,6 +229,7 @@
             taskForm.taskTitle.value = task.title;
             taskForm.taskDesc.value = task.description;
             taskForm.taskPIC.value = task.pic;
+            taskForm.taskPriority.value = task.priority || 'medium';
             modalTitle.textContent = '編輯任務';
             submitBtn.textContent = '儲存變更';
             taskModal.classList.remove('hidden');
@@ -250,7 +253,15 @@
             Object.entries(tasks).forEach(([columnId, taskList]) => {
                 const columnEl = document.querySelector(`[data-column-id="${columnId}"]`);
                 if (!columnEl) return;
-                taskList.forEach(task => {
+                
+                const priorityOrder = { high: 1, medium: 2, low: 3 };
+                const sortedTasks = taskList.sort((a, b) => {
+                    const priorityA = priorityOrder[a.priority] || 4;
+                    const priorityB = priorityOrder[b.priority] || 4;
+                    return priorityA - priorityB;
+                });
+
+                sortedTasks.forEach(task => {
                     const taskCard = createTaskCard(task);
                     columnEl.appendChild(taskCard);
                 });
@@ -263,19 +274,51 @@
             card.draggable = true;
             card.dataset.taskId = task.id;
 
-            const mainContent = document.createElement('div');
-            mainContent.className = 'flex-grow';
+            const contentWrapper = document.createElement('div');
+            contentWrapper.className = 'flex-grow';
+
+            const header = document.createElement('div');
+            header.className = 'flex justify-between items-start mb-1';
 
             const title = document.createElement('h3');
-            title.className = 'font-semibold mb-1 break-words';
+            title.className = 'font-semibold break-words mr-2';
             title.textContent = task.title;
-            mainContent.appendChild(title);
+            
+            // 優先權指示器 (圓點 + 文字)
+            const priorityContainer = document.createElement('div');
+            priorityContainer.className = 'flex items-center gap-1.5 flex-shrink-0';
+            
+            const priorityDot = document.createElement('span');
+            priorityDot.className = 'w-3 h-3 rounded-full';
+            
+            const priorityText = document.createElement('span');
+            priorityText.className = 'text-xs font-semibold';
+
+            const priorityMap = {
+                high:   { text: '高', bg: 'bg-red-500', textColor: 'text-red-600' },
+                medium: { text: '中', bg: 'bg-blue-500', textColor: 'text-blue-600' },
+                low:    { text: '低', bg: 'bg-green-500', textColor: 'text-green-600' }
+            };
+
+            const priorityInfo = priorityMap[task.priority] || priorityMap.medium;
+
+            priorityDot.classList.add(priorityInfo.bg);
+            priorityText.classList.add(priorityInfo.textColor);
+            priorityText.textContent = priorityInfo.text;
+            
+            priorityContainer.appendChild(priorityDot);
+            priorityContainer.appendChild(priorityText);
+
+            header.appendChild(title);
+            header.appendChild(priorityContainer);
+            contentWrapper.appendChild(header);
+
 
             if (task.description) {
                 const desc = document.createElement('p');
                 desc.className = 'text-sm text-slate-600 whitespace-pre-wrap break-words';
                 desc.textContent = task.description;
-                mainContent.appendChild(desc);
+                contentWrapper.appendChild(desc);
             }
 
             const footer = document.createElement('div');
@@ -305,7 +348,7 @@
             footer.appendChild(picDisplay);
             footer.appendChild(actions);
             
-            card.appendChild(mainContent);
+            card.appendChild(contentWrapper);
             card.appendChild(footer);
             
             card.addEventListener('dragstart', handleDragStart);
@@ -321,6 +364,7 @@
                 title: taskForm.taskTitle.value.trim(),
                 description: taskForm.taskDesc.value.trim(),
                 pic: taskForm.taskPIC.value.trim(),
+                priority: taskForm.taskPriority.value,
             };
 
             if (!taskData.title || !tasksCollection) return;
