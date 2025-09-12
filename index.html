@@ -3,9 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title> ME2 工作看板 </title>
+    <title>ME2 工作看板</title>
     <!-- 引入 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" xintegrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <!-- 引入 Google Fonts 的 Inter 字體 -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -40,6 +42,9 @@
         .tasks-container::-webkit-scrollbar-thumb:hover {
             background-color: #94a3b8;
         }
+        .task-actions button {
+            transition: color 0.2s ease-in-out;
+        }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800">
@@ -47,7 +52,7 @@
     <!-- 主容器 -->
     <main class="min-h-screen flex flex-col p-4 sm:p-6 lg:p-8">
         <header class="mb-6 flex justify-between items-center">
-            <h1 class="text-3xl font-bold text-slate-700"> ME2 工作看板 </h1>
+            <h1 class="text-3xl font-bold text-slate-700">ME2 工作看板</h1>
             <button id="addTaskBtn" class="bg-blue-600 text-white font-semibold py-2 px-5 rounded-lg shadow-md hover:bg-blue-700 transition-colors duration-300">
                 <span class="hidden sm:inline">新增任務</span>
                 <span class="sm:hidden">+</span>
@@ -82,11 +87,12 @@
         </div>
     </main>
 
-    <!-- 新增任務 Modal 彈出視窗 -->
+    <!-- 新增/編輯任務 Modal 彈出視窗 -->
     <div id="taskModal" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center hidden z-50 p-4">
         <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-            <h3 class="text-xl font-bold mb-4">新增一個任務</h3>
+            <h3 id="modalTitle" class="text-xl font-bold mb-4">新增一個任務</h3>
             <form id="taskForm">
+                <input type="hidden" id="editTaskId" name="editTaskId">
                 <div class="mb-4">
                     <label for="taskTitle" class="block text-sm font-medium text-slate-600 mb-1">標題</label>
                     <input type="text" id="taskTitle" name="taskTitle" required class="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500" placeholder="例如：完成專案報告">
@@ -101,7 +107,7 @@
                 </div>
                 <div class="flex justify-end gap-3">
                     <button type="button" id="cancelBtn" class="bg-slate-200 text-slate-700 font-semibold py-2 px-4 rounded-lg hover:bg-slate-300 transition-colors">取消</button>
-                    <button type="submit" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors">建立任務</button>
+                    <button type="submit" id="submitBtn" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors">建立任務</button>
                 </div>
             </form>
         </div>
@@ -116,15 +122,36 @@
             const taskForm = document.getElementById('taskForm');
             const cancelBtn = document.getElementById('cancelBtn');
             const columns = document.querySelectorAll('.tasks-container');
+            const modalTitle = document.getElementById('modalTitle');
+            const submitBtn = document.getElementById('submitBtn');
+            const editTaskIdInput = document.getElementById('editTaskId');
 
             // --- Modal 控制 ---
-            const showModal = () => taskModal.classList.remove('hidden');
+            const openAddModal = () => {
+                taskForm.reset();
+                editTaskIdInput.value = '';
+                modalTitle.textContent = '新增一個任務';
+                submitBtn.textContent = '建立任務';
+                taskModal.classList.remove('hidden');
+            };
+            
+            const openEditModal = (task) => {
+                taskForm.reset();
+                editTaskIdInput.value = task.id;
+                taskForm.taskTitle.value = task.title;
+                taskForm.taskDesc.value = task.description;
+                taskForm.taskPIC.value = task.pic;
+                modalTitle.textContent = '編輯任務';
+                submitBtn.textContent = '儲存變更';
+                taskModal.classList.remove('hidden');
+            };
+
             const hideModal = () => {
                 taskModal.classList.add('hidden');
                 taskForm.reset();
             };
 
-            addTaskBtn.addEventListener('click', showModal);
+            addTaskBtn.addEventListener('click', openAddModal);
             cancelBtn.addEventListener('click', hideModal);
             taskModal.addEventListener('click', (e) => {
                 if (e.target === taskModal) {
@@ -148,10 +175,8 @@
             // 根據任務資料渲染卡片到對應的欄位
             const renderTasks = () => {
                 const tasks = getTasks();
-                // 先清空所有欄位
                 columns.forEach(col => col.innerHTML = '');
 
-                // 遍歷所有任務並創建卡片
                 Object.entries(tasks).forEach(([columnId, taskList]) => {
                     const columnEl = document.querySelector(`[data-column-id="${columnId}"]`);
                     if (!columnEl) return;
@@ -170,12 +195,11 @@
                 card.draggable = true;
                 card.dataset.taskId = task.id;
 
-                // 主要內容區域
                 const mainContent = document.createElement('div');
                 mainContent.className = 'flex-grow';
 
                 const title = document.createElement('h3');
-                title.className = 'font-semibold mb-1';
+                title.className = 'font-semibold mb-1 break-words';
                 title.textContent = task.title;
                 mainContent.appendChild(title);
 
@@ -186,53 +210,73 @@
                     mainContent.appendChild(desc);
                 }
 
-                // 頁腳區域 (負責人, 刪除按鈕)
                 const footer = document.createElement('div');
                 footer.className = 'flex justify-between items-center mt-4 pt-2 border-t border-slate-100';
 
                 const picDisplay = document.createElement('span');
                 picDisplay.className = 'text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-full';
-                if (task.pic) {
-                    picDisplay.textContent = `負責人: ${task.pic}`;
-                } else {
-                    picDisplay.style.display = 'none'; // 如果沒有負責人則隱藏
-                }
+                picDisplay.textContent = task.pic ? `負責人: ${task.pic}` : '';
+                picDisplay.style.display = task.pic ? 'inline-block' : 'none';
                 
-                const deleteBtn = document.createElement('button');
-                deleteBtn.className = 'text-xs text-red-500 hover:text-red-700';
-                deleteBtn.textContent = '刪除';
-                deleteBtn.onclick = () => deleteTask(task.id);
+                const actions = document.createElement('div');
+                actions.className = 'task-actions flex items-center gap-3';
 
+                const editBtn = document.createElement('button');
+                editBtn.className = 'text-sm text-slate-500 hover:text-blue-600';
+                editBtn.innerHTML = '<i class="fas fa-pencil-alt"></i>';
+                editBtn.onclick = () => openEditModal(task);
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'text-sm text-red-400 hover:text-red-600';
+                deleteBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
+                deleteBtn.onclick = () => deleteTask(task.id);
+                
+                actions.appendChild(editBtn);
+                actions.appendChild(deleteBtn);
+                
                 footer.appendChild(picDisplay);
-                footer.appendChild(deleteBtn);
+                footer.appendChild(actions);
                 
                 card.appendChild(mainContent);
                 card.appendChild(footer);
                 
-                // 添加拖曳事件監聽器
                 card.addEventListener('dragstart', handleDragStart);
                 card.addEventListener('dragend', handleDragEnd);
 
                 return card;
             };
             
-            // 處理表單提交，新增任務
+            // 處理表單提交，新增或編輯任務
             taskForm.addEventListener('submit', (e) => {
                 e.preventDefault();
                 const tasks = getTasks();
-                const newTask = {
-                    id: `task-${Date.now()}`,
+                const taskId = editTaskIdInput.value;
+                const taskData = {
                     title: taskForm.taskTitle.value.trim(),
                     description: taskForm.taskDesc.value.trim(),
-                    pic: taskForm.taskPIC.value.trim(), // 新增 PIC 欄位
+                    pic: taskForm.taskPIC.value.trim(),
                 };
-                
-                if (newTask.title) {
-                    tasks.todo.push(newTask); // 新任務預設添加到 "待辦事項"
-                    saveTasks(tasks);
-                    renderTasks();
-                    hideModal();
+
+                if (!taskData.title) return;
+
+                if (taskId) { // 編輯模式
+                    let taskFound = false;
+                    for (const columnId in tasks) {
+                        const taskIndex = tasks[columnId].findIndex(t => t.id === taskId);
+                        if (taskIndex !== -1) {
+                            tasks[columnId][taskIndex] = { ...tasks[columnId][taskIndex], ...taskData };
+                            taskFound = true;
+                            break;
+                        }
+                    }
+                } else { // 新增模式
+                    const newTask = { ...taskData, id: `task-${Date.now()}` };
+                    tasks.todo.push(newTask);
                 }
+                
+                saveTasks(tasks);
+                renderTasks();
+                hideModal();
             });
 
             // 刪除任務
@@ -240,7 +284,6 @@
                 if (!confirm('您確定要刪除這個任務嗎？')) return;
 
                 let tasks = getTasks();
-                // 遍歷所有欄位，找到並刪除該任務
                 for (const columnId in tasks) {
                     tasks[columnId] = tasks[columnId].filter(task => task.id !== taskIdToDelete);
                 }
@@ -262,20 +305,13 @@
             }
 
             columns.forEach(column => {
-                column.addEventListener('dragover', (e) => {
-                    e.preventDefault(); // 必須阻止預設行為才能觸發 drop 事件
+                column.addEventListener('dragover', e => e.preventDefault());
+                column.addEventListener('dragenter', e => {
+                    e.preventDefault();
                     column.classList.add('drag-over');
                 });
-
-                column.addEventListener('dragenter', (e) => {
-                    e.preventDefault();
-                });
-
-                column.addEventListener('dragleave', () => {
-                    column.classList.remove('drag-over');
-                });
-
-                column.addEventListener('drop', (e) => {
+                column.addEventListener('dragleave', () => column.classList.remove('drag-over'));
+                column.addEventListener('drop', e => {
                     e.preventDefault();
                     column.classList.remove('drag-over');
                     
@@ -285,23 +321,18 @@
                         
                         let tasks = getTasks();
                         let taskToMove = null;
-                        let sourceColumnId = null;
 
-                        // 從原始欄位找到並移除任務
                         for (const colId in tasks) {
                             const taskIndex = tasks[colId].findIndex(t => t.id === taskId);
                             if (taskIndex > -1) {
-                                taskToMove = tasks[colId].splice(taskIndex, 1)[0];
-                                sourceColumnId = colId;
+                                [taskToMove] = tasks[colId].splice(taskIndex, 1);
                                 break;
                             }
                         }
                         
-                        // 將任務添加到目標欄位
                         if (taskToMove && targetColumnId) {
                             tasks[targetColumnId].push(taskToMove);
                             saveTasks(tasks);
-                            // 直接操作 DOM，避免重新渲染造成閃爍
                             column.appendChild(draggedItem);
                         }
                     }
@@ -314,4 +345,6 @@
     </script>
 </body>
 </html>
+
+
 
