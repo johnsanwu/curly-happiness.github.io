@@ -255,8 +255,7 @@
                 appContainer.classList.add('flex'); // 確保 flex 佈局生效
                 userEmailDisplay.textContent = user.email;
 
-                // 為每個使用者使用獨立的 tasks 集合，確保資料隔離
-                tasksCollection = collection(db, 'users', user.uid, 'tasks');
+                tasksCollection = collection(db, 'tasks');
                 setupRealtimeListener();
             } else {
                 // 使用者已登出或未登入
