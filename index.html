@@ -49,13 +49,59 @@
 </head>
 <body class="bg-slate-100 text-slate-800">
 
-    <!-- 主容器 -->
-    <main class="min-h-screen flex flex-col p-4 sm:p-6 lg:p-8">
+    <!-- 驗證容器 -->
+    <div id="auth-container" class="min-h-screen flex flex-col justify-center items-center p-4">
+        <div class="w-full max-w-sm">
+            <!-- 登入表單 -->
+            <div id="login-view">
+                <form id="login-form" class="bg-white shadow-xl rounded-xl px-8 pt-6 pb-8 mb-4">
+                    <h2 class="text-2xl font-bold text-center text-slate-700 mb-6">登入看板</h2>
+                    <div class="mb-4">
+                        <label class="block text-slate-700 text-sm font-bold mb-2" for="login-email">Email</label>
+                        <input class="shadow-sm appearance-none border rounded w-full py-3 px-4 text-slate-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" id="login-email" type="email" placeholder="your@email.com" required>
+                    </div>
+                    <div class="mb-6">
+                        <label class="block text-slate-700 text-sm font-bold mb-2" for="login-password">密碼</label>
+                        <input class="shadow-sm appearance-none border rounded w-full py-3 px-4 text-slate-700 mb-3 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" id="login-password" type="password" placeholder="******************" required>
+                    </div>
+                    <button class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg focus:outline-none focus:shadow-outline transition-colors" type="submit">登入</button>
+                    <p id="login-error" class="text-red-500 text-xs italic mt-4 text-center h-4"></p>
+                    <p class="text-center text-slate-500 text-xs mt-4">
+                        還沒有帳號嗎? <a id="show-register-view" class="font-bold text-blue-600 hover:text-blue-800" href="#">馬上註冊</a>
+                    </p>
+                </form>
+            </div>
+            <!-- 註冊表單 (預設隱藏) -->
+            <div id="register-view" class="hidden">
+                <form id="register-form" class="bg-white shadow-xl rounded-xl px-8 pt-6 pb-8 mb-4">
+                    <h2 class="text-2xl font-bold text-center text-slate-700 mb-6">註冊新帳號</h2>
+                    <div class="mb-4">
+                        <label class="block text-slate-700 text-sm font-bold mb-2" for="register-email">Email</label>
+                        <input class="shadow-sm appearance-none border rounded w-full py-3 px-4 text-slate-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" id="register-email" type="email" placeholder="your@email.com" required>
+                    </div>
+                    <div class="mb-6">
+                        <label class="block text-slate-700 text-sm font-bold mb-2" for="register-password">密碼 (至少6個字元)</label>
+                        <input class="shadow-sm appearance-none border rounded w-full py-3 px-4 text-slate-700 mb-3 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" id="register-password" type="password" placeholder="******************" required>
+                    </div>
+                    <button class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg focus:outline-none focus:shadow-outline transition-colors" type="submit">註冊</button>
+                    <p id="register-error" class="text-red-500 text-xs italic mt-4 text-center h-4"></p>
+                    <p class="text-center text-slate-500 text-xs mt-4">
+                        已經有帳號了? <a id="show-login-view" class="font-bold text-blue-600 hover:text-blue-800" href="#">直接登入</a>
+                    </p>
+                </form>
+            </div>
+             <p class="text-center text-slate-400 text-xs">© 2024 ME2 Kanban. All rights reserved.</p>
+        </div>
+    </div>
+
+    <!-- 主應用程式容器 (預設隱藏) -->
+    <main id="app-container" class="min-h-screen hidden flex-col p-4 sm:p-6 lg:p-8">
         <header class="mb-6 flex flex-wrap justify-between items-center gap-4">
             <h1 class="text-3xl font-bold text-slate-700">ME2 工作看板</h1>
             <div class="flex items-center gap-4">
-                 <div class="text-xs text-slate-500">
-                    <span class="font-semibold">您的ID:</span> <span id="userIdDisplay">載入中...</span>
+                <div id="user-info" class="flex items-center gap-3">
+                    <span id="user-email" class="text-sm font-medium text-slate-600"></span>
+                    <button id="logout-btn" class="text-sm bg-slate-200 text-slate-700 font-semibold py-2 px-4 rounded-lg hover:bg-slate-300 transition-colors">登出</button>
                 </div>
                 <button id="addTaskBtn" class="bg-blue-600 text-white font-semibold py-2 px-5 rounded-lg shadow-md hover:bg-blue-700 transition-colors duration-300">
                     <span class="hidden sm:inline">新增任務</span>
@@ -142,7 +188,13 @@
     <script type="module">
         // 引入 Firebase SDK
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import {
+            getAuth,
+            onAuthStateChanged,
+            createUserWithEmailAndPassword,
+            signInWithEmailAndPassword,
+            signOut
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Firebase 設定 ---
@@ -159,11 +211,28 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        let tasksCollection; // 將在驗證後設置
-        let currentUserId;  // 將在驗證後設置
+        let tasksCollection;
+        let unsubscribe; // 用於取消即時監聽
 
         // --- DOM 元素選擇 ---
+        // 驗證區塊
+        const authContainer = document.getElementById('auth-container');
+        const loginView = document.getElementById('login-view');
+        const registerView = document.getElementById('register-view');
+        const loginForm = document.getElementById('login-form');
+        const registerForm = document.getElementById('register-form');
+        const showRegisterViewBtn = document.getElementById('show-register-view');
+        const showLoginViewBtn = document.getElementById('show-login-view');
+        const loginError = document.getElementById('login-error');
+        const registerError = document.getElementById('register-error');
+
+        // 主應用程式區塊
+        const appContainer = document.getElementById('app-container');
+        const userEmailDisplay = document.getElementById('user-email');
+        const logoutBtn = document.getElementById('logout-btn');
         const addTaskBtn = document.getElementById('addTaskBtn');
+
+        // Modal
         const taskModal = document.getElementById('taskModal');
         const taskForm = document.getElementById('taskForm');
         const cancelBtn = document.getElementById('cancelBtn');
@@ -171,37 +240,105 @@
         const modalTitle = document.getElementById('modalTitle');
         const submitBtn = document.getElementById('submitBtn');
         const editTaskIdInput = document.getElementById('editTaskId');
-        const userIdDisplay = document.getElementById('userIdDisplay');
         
-        // 刪除 Modal 元素
+        // 刪除 Modal
         const deleteConfirmModal = document.getElementById('deleteConfirmModal');
         const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
         const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
 
-        // --- 驗證與初始化 ---
-        onAuthStateChanged(auth, async (user) => {
+        // --- 驗證狀態管理 ---
+        onAuthStateChanged(auth, (user) => {
             if (user) {
-                currentUserId = user.uid;
-                userIdDisplay.textContent = currentUserId;
-                
-                tasksCollection = collection(db, `tasks`);
-                
-                setupRealtimeListener();
+                // 使用者已登入
+                authContainer.classList.add('hidden');
+                appContainer.classList.remove('hidden');
+                appContainer.classList.add('flex'); // 確保 flex 佈局生效
+                userEmailDisplay.textContent = user.email;
 
+                // 為每個使用者使用獨立的 tasks 集合，確保資料隔離
+                tasksCollection = collection(db, 'users', user.uid, 'tasks');
+                setupRealtimeListener();
             } else {
-                 try {
-                    await signInAnonymously(auth);
-                } catch (error) {
-                    console.error("驗證失敗:", error);
-                    userIdDisplay.textContent = "驗證錯誤";
+                // 使用者已登出或未登入
+                authContainer.classList.remove('hidden');
+                appContainer.classList.add('hidden');
+                appContainer.classList.remove('flex');
+                userEmailDisplay.textContent = '';
+
+                // 確保登出後永遠顯示登入畫面
+                loginView.classList.remove('hidden');
+                registerView.classList.add('hidden');
+
+                // 如果存在監聽器，則取消訂閱
+                if (unsubscribe) {
+                    unsubscribe();
+                    unsubscribe = null;
                 }
+                // 清空看板
+                columns.forEach(col => col.innerHTML = '');
             }
         });
+
+        // --- UI切換 ---
+        showRegisterViewBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            loginView.classList.add('hidden');
+            registerView.classList.remove('hidden');
+            loginError.textContent = '';
+            registerError.textContent = '';
+        });
+
+        showLoginViewBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            registerView.classList.add('hidden');
+            loginView.classList.remove('hidden');
+            loginError.textContent = '';
+            registerError.textContent = '';
+        });
+
+        // --- 驗證邏輯 ---
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = loginForm['login-email'].value;
+            const password = loginForm['login-password'].value;
+            loginError.textContent = '';
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+            } catch (error) {
+                console.error("登入失敗:", error.message);
+                loginError.textContent = '登入失敗，請檢查您的Email和密碼。';
+            }
+        });
+
+        registerForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = registerForm['register-email'].value;
+            const password = registerForm['register-password'].value;
+            registerError.textContent = '';
+            try {
+                await createUserWithEmailAndPassword(auth, email, password);
+            } catch (error) {
+                console.error("註冊失敗:", error.message);
+                registerError.textContent = '註冊失敗，請確認Email格式或密碼長度。';
+            }
+        });
+
+        logoutBtn.addEventListener('click', async () => {
+            try {
+                await signOut(auth);
+            } catch (error) {
+                 console.error("登出失敗:", error);
+            }
+        });
+
 
         // --- 即時資料監聽 ---
         function setupRealtimeListener() {
             if (!tasksCollection) return;
-            onSnapshot(tasksCollection, (snapshot) => {
+            // 先取消舊的監聽，避免重複
+            if (unsubscribe) unsubscribe();
+
+            unsubscribe = onSnapshot(tasksCollection, (snapshot) => {
                 const tasks = { todo: [], inprogress: [], done: [] };
                 snapshot.docs.forEach(doc => {
                     const task = { id: doc.id, ...doc.data() };
