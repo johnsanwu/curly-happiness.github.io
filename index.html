@@ -103,8 +103,20 @@
         <header class="mb-6 flex flex-wrap justify-between items-center gap-4">
             <h1 class="text-3xl font-bold text-slate-700">ME2 工作看板</h1>
             <div class="flex items-center gap-4">
-                <div id="user-info" class="flex items-center gap-3">
+                <div id="user-info" class="flex items-center gap-4">
                     <span id="user-display" class="text-sm font-medium text-slate-600"></span>
+
+                    <!-- Online Users Display -->
+                    <div id="online-users-container" class="hidden items-center gap-2 border-l border-slate-300 pl-4">
+                        <div class="relative flex items-center">
+                           <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                           <div class="absolute w-3 h-3 bg-green-500 rounded-full opacity-75 animate-ping"></div>
+                        </div>
+                        <div id="online-users-list" class="flex items-center text-sm font-medium text-slate-500">
+                            <!-- Online users will be rendered here by JavaScript -->
+                        </div>
+                    </div>
+
                     <button id="logout-btn" class="text-sm bg-slate-200 text-slate-700 font-semibold py-2 px-4 rounded-lg hover:bg-slate-300 transition-colors">登出</button>
                 </div>
                 <button id="addTaskBtn" class="bg-blue-600 text-white font-semibold py-2 px-5 rounded-lg shadow-md hover:bg-blue-700 transition-colors duration-300">
@@ -201,6 +213,7 @@
             updateProfile
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getDatabase, ref, set, onDisconnect, remove, onValue } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 
         // --- Firebase 設定 ---
         const firebaseConfig = {
@@ -209,15 +222,18 @@
           projectId: "curly-happiness",
           storageBucket: "curly-happiness.firebasestorage.app",
           messagingSenderId: "556696470832",
-          appId: "1:556696470e7db40f3f5cc8c34f5"
+          appId: "1:556696470e7db40f3f5cc8c34f5",
+          databaseURL: "https://curly-happiness-default-rtdb.firebaseio.com"
         };
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
+        const rtdb = getDatabase(app);
 
         let tasksCollection;
         let unsubscribe; // 用於取消即時監聽
+        let userStatusRef; // 用於儲存使用者在 Realtime DB 的狀態引用
 
         // --- DOM 元素選擇 ---
         // 驗證區塊
@@ -234,6 +250,8 @@
         // 主應用程式區塊
         const appContainer = document.getElementById('app-container');
         const userDisplay = document.getElementById('user-display');
+        const onlineUsersContainer = document.getElementById('online-users-container');
+        const onlineUsersList = document.getElementById('online-users-list');
         const logoutBtn = document.getElementById('logout-btn');
         const addTaskBtn = document.getElementById('addTaskBtn');
 
@@ -251,23 +269,70 @@
         const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
         const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
 
+        // --- 在線狀態管理 (Presence) ---
+        let onlineUsersUnsubscribe = null;
+
+        function managePresence(user) {
+            userStatusRef = ref(rtdb, 'status/' + user.uid);
+            const userStatus = {
+                name: user.displayName || user.email,
+                status: 'online',
+            };
+            onDisconnect(userStatusRef).remove();
+            set(userStatusRef, userStatus);
+        }
+
+        function setupOnlineUsersListener() {
+            const statusRef = ref(rtdb, 'status/');
+            onlineUsersUnsubscribe = onValue(statusRef, (snapshot) => {
+                const onlineUsers = snapshot.val();
+                renderOnlineUsers(onlineUsers);
+            });
+        }
+
+        function renderOnlineUsers(users) {
+            onlineUsersList.innerHTML = ''; // Clear previous list
+            if (users) {
+                const userNames = Object.values(users).map(u => u.name.split('@')[0]); // Display name before '@'
+                if (userNames.length > 1) {
+                    onlineUsersList.textContent = `${userNames.length}人正在線上`;
+                    onlineUsersContainer.classList.remove('hidden');
+                    onlineUsersContainer.classList.add('flex');
+                } else {
+                    onlineUsersContainer.classList.add('hidden');
+                }
+            } else {
+                onlineUsersContainer.classList.add('hidden');
+            }
+        }
+
         // --- 驗證狀態管理 ---
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 // 使用者已登入
                 authContainer.classList.add('hidden');
                 appContainer.classList.remove('hidden');
-                appContainer.classList.add('flex'); // 確保 flex 佈局生效
+                appContainer.classList.add('flex');
                 userDisplay.textContent = user.displayName || user.email;
 
+                // 初始化看板和在線狀態
                 tasksCollection = collection(db, 'tasks');
                 setupRealtimeListener();
+                managePresence(user);
+                setupOnlineUsersListener();
             } else {
                 // 使用者已登出或未登入
+                if (userStatusRef) {
+                    // 確保在登出時也清除在線狀態
+                    remove(userStatusRef);
+                }
+                userStatusRef = null;
+
                 authContainer.classList.remove('hidden');
                 appContainer.classList.add('hidden');
                 appContainer.classList.remove('flex');
                 userDisplay.textContent = '';
+                onlineUsersContainer.classList.add('hidden');
 
                 // 確保登出後永遠顯示登入畫面
                 loginView.classList.remove('hidden');
@@ -277,6 +342,10 @@
                 if (unsubscribe) {
                     unsubscribe();
                     unsubscribe = null;
+                }
+                if (onlineUsersUnsubscribe) {
+                    onlineUsersUnsubscribe();
+                    onlineUsersUnsubscribe = null;
                 }
                 // 清空看板
                 columns.forEach(col => col.innerHTML = '');
@@ -348,6 +417,11 @@
 
         logoutBtn.addEventListener('click', async () => {
             try {
+                // 先從 Realtime Database 移除在線狀態
+                if (userStatusRef) {
+                    await remove(userStatusRef);
+                }
+                // 然後再登出
                 await signOut(auth);
             } catch (error) {
                  console.error("登出失敗:", error);
