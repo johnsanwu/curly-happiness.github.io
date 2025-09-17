@@ -76,6 +76,10 @@
                 <form id="register-form" class="bg-white shadow-xl rounded-xl px-8 pt-6 pb-8 mb-4">
                     <h2 class="text-2xl font-bold text-center text-slate-700 mb-6">註冊新帳號</h2>
                     <div class="mb-4">
+                        <label class="block text-slate-700 text-sm font-bold mb-2" for="register-name">名稱</label>
+                        <input class="shadow-sm appearance-none border rounded w-full py-3 px-4 text-slate-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" id="register-name" type="text" placeholder="你的名字" required>
+                    </div>
+                    <div class="mb-4">
                         <label class="block text-slate-700 text-sm font-bold mb-2" for="register-email">Email</label>
                         <input class="shadow-sm appearance-none border rounded w-full py-3 px-4 text-slate-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" id="register-email" type="email" placeholder="your@email.com" required>
                     </div>
@@ -100,7 +104,7 @@
             <h1 class="text-3xl font-bold text-slate-700">ME2 工作看板</h1>
             <div class="flex items-center gap-4">
                 <div id="user-info" class="flex items-center gap-3">
-                    <span id="user-email" class="text-sm font-medium text-slate-600"></span>
+                    <span id="user-display" class="text-sm font-medium text-slate-600"></span>
                     <button id="logout-btn" class="text-sm bg-slate-200 text-slate-700 font-semibold py-2 px-4 rounded-lg hover:bg-slate-300 transition-colors">登出</button>
                 </div>
                 <button id="addTaskBtn" class="bg-blue-600 text-white font-semibold py-2 px-5 rounded-lg shadow-md hover:bg-blue-700 transition-colors duration-300">
@@ -193,7 +197,8 @@
             onAuthStateChanged,
             createUserWithEmailAndPassword,
             signInWithEmailAndPassword,
-            signOut
+            signOut,
+            updateProfile
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -228,7 +233,7 @@
 
         // 主應用程式區塊
         const appContainer = document.getElementById('app-container');
-        const userEmailDisplay = document.getElementById('user-email');
+        const userDisplay = document.getElementById('user-display');
         const logoutBtn = document.getElementById('logout-btn');
         const addTaskBtn = document.getElementById('addTaskBtn');
 
@@ -253,7 +258,7 @@
                 authContainer.classList.add('hidden');
                 appContainer.classList.remove('hidden');
                 appContainer.classList.add('flex'); // 確保 flex 佈局生效
-                userEmailDisplay.textContent = user.email;
+                userDisplay.textContent = user.displayName || user.email;
 
                 tasksCollection = collection(db, 'tasks');
                 setupRealtimeListener();
@@ -262,7 +267,7 @@
                 authContainer.classList.remove('hidden');
                 appContainer.classList.add('hidden');
                 appContainer.classList.remove('flex');
-                userEmailDisplay.textContent = '';
+                userDisplay.textContent = '';
 
                 // 確保登出後永遠顯示登入畫面
                 loginView.classList.remove('hidden');
@@ -311,14 +316,33 @@
 
         registerForm.addEventListener('submit', async (e) => {
             e.preventDefault();
+            const name = registerForm['register-name'].value.trim();
             const email = registerForm['register-email'].value;
             const password = registerForm['register-password'].value;
             registerError.textContent = '';
+
+            if (!name) {
+                registerError.textContent = '請輸入您的名稱。';
+                return;
+            }
+
             try {
-                await createUserWithEmailAndPassword(auth, email, password);
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                // After user is created, update their profile with the name
+                await updateProfile(userCredential.user, {
+                    displayName: name
+                });
+                // The onAuthStateChanged listener will automatically handle the UI transition
             } catch (error) {
                 console.error("註冊失敗:", error.message);
-                registerError.textContent = '註冊失敗，請確認Email格式或密碼長度。';
+                // Provide more specific feedback if possible
+                if (error.code === 'auth/email-already-in-use') {
+                    registerError.textContent = '這個Email已經被註冊了。';
+                } else if (error.code === 'auth/weak-password') {
+                    registerError.textContent = '密碼太弱，請至少使用6個字元。';
+                } else {
+                    registerError.textContent = '註冊失敗，請稍後再試。';
+                }
             }
         });
 
