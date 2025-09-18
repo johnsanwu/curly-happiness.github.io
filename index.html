@@ -12,6 +12,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- 引入 SheetJS for Excel export -->
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
     <style>
         /* 自定義樣式 */
         body {
@@ -119,6 +121,10 @@
 
                     <button id="logout-btn" class="text-sm bg-slate-200 text-slate-700 font-semibold py-2 px-4 rounded-lg hover:bg-slate-300 transition-colors">登出</button>
                 </div>
+                <button id="exportBtn" class="bg-green-600 text-white font-semibold py-2 px-5 rounded-lg shadow-md hover:bg-green-700 transition-colors duration-300 mr-2">
+                    <span class="hidden sm:inline">匯出 Excel</span>
+                    <span class="sm:hidden"><i class="fas fa-file-excel"></i></span>
+                </button>
                 <button id="addTaskBtn" class="bg-blue-600 text-white font-semibold py-2 px-5 rounded-lg shadow-md hover:bg-blue-700 transition-colors duration-300">
                     <span class="hidden sm:inline">新增任務</span>
                     <span class="sm:hidden">+</span>
@@ -234,6 +240,7 @@
         let tasksCollection;
         let unsubscribe; // 用於取消即時監聽
         let userStatusRef; // 用於儲存使用者在 Realtime DB 的狀態引用
+        let allTasks = { todo: [], inprogress: [], done: [] }; // 用於儲存所有任務的快取
 
         // --- DOM 元素選擇 ---
         // 驗證區塊
@@ -254,6 +261,7 @@
         const onlineUsersList = document.getElementById('online-users-list');
         const logoutBtn = document.getElementById('logout-btn');
         const addTaskBtn = document.getElementById('addTaskBtn');
+        const exportBtn = document.getElementById('exportBtn');
 
         // Modal
         const taskModal = document.getElementById('taskModal');
@@ -429,21 +437,63 @@
         });
 
 
+        // --- Excel 匯出功能 ---
+        const exportTasks = () => {
+            const tasksToExport = [...allTasks.todo, ...allTasks.inprogress];
+
+            if (tasksToExport.length === 0) {
+                alert('沒有可匯出的任務。');
+                return;
+            }
+
+            const statusMapping = {
+                todo: '待辦事項',
+                inprogress: '進行中'
+            };
+
+            const priorityMapping = {
+                high: '高',
+                medium: '中',
+                low: '低'
+            };
+
+            const formattedTasks = tasksToExport.map(task => ({
+                '狀態': statusMapping[task.columnId] || task.columnId,
+                '優先權': priorityMapping[task.priority] || task.priority,
+                '標題': task.title,
+                '描述': task.description || '',
+                '負責人': task.pic || ''
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(formattedTasks);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, '進行中的任務');
+
+            // 自動調整欄寬
+            const colWidths = Object.keys(formattedTasks[0]).map(key => ({
+                wch: formattedTasks.reduce((w, r) => Math.max(w, r[key].toString().length), 10)
+            }));
+            worksheet['!cols'] = colWidths;
+
+            XLSX.writeFile(workbook, 'Kanban_Tasks_Export.xlsx');
+        };
+
         // --- 即時資料監聽 ---
         function setupRealtimeListener() {
             if (!tasksCollection) return;
-            // 先取消舊的監聽，避免重複
             if (unsubscribe) unsubscribe();
 
             unsubscribe = onSnapshot(tasksCollection, (snapshot) => {
-                const tasks = { todo: [], inprogress: [], done: [] };
+                // Reset local cache
+                allTasks = { todo: [], inprogress: [], done: [] };
                 snapshot.docs.forEach(doc => {
                     const task = { id: doc.id, ...doc.data() };
-                    if (tasks[task.columnId]) {
-                        tasks[task.columnId].push(task);
+                    if (allTasks[task.columnId]) {
+                        allTasks[task.columnId].push(task);
                     }
                 });
-                renderTasks(tasks);
+                // Render tasks on the board
+                renderTasks(allTasks);
             });
         }
 
@@ -475,6 +525,7 @@
         };
 
         addTaskBtn.addEventListener('click', openAddModal);
+        exportBtn.addEventListener('click', exportTasks);
         cancelBtn.addEventListener('click', hideModal);
         taskModal.addEventListener('click', (e) => {
             if (e.target === taskModal) hideModal();
