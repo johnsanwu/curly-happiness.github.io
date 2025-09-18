@@ -307,7 +307,7 @@
         }
 
         // --- 驗證狀態管理 ---
-        onAuthStateChanged(auth, (user) => {
+        onAuthStateChanged(auth, async (user) => {
             if (user) {
                 // 使用者已登入
                 authContainer.classList.add('hidden');
@@ -323,8 +323,12 @@
             } else {
                 // 使用者已登出或未登入
                 if (userStatusRef) {
-                    // 確保在登出時也清除在線狀態
-                    remove(userStatusRef);
+                    try {
+                        // 確保在登出時也清除在線狀態
+                        await remove(userStatusRef);
+                    } catch (error) {
+                        console.error("Error removing user status on logout:", error);
+                    }
                 }
                 userStatusRef = null;
 
@@ -417,11 +421,7 @@
 
         logoutBtn.addEventListener('click', async () => {
             try {
-                // 先從 Realtime Database 移除在線狀態
-                if (userStatusRef) {
-                    await remove(userStatusRef);
-                }
-                // 然後再登出
+                // The onAuthStateChanged observer will handle cleaning up the user's presence.
                 await signOut(auth);
             } catch (error) {
                  console.error("登出失敗:", error);
