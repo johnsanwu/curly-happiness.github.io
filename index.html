@@ -114,10 +114,6 @@
                     <span class="hidden sm:inline">匯出 Excel</span>
                     <span class="sm:hidden"><i class="fas fa-file-excel"></i></span>
                 </button>
-                <button id="showOnlineUsersBtn" class="bg-indigo-600 text-white font-semibold py-2 px-5 rounded-lg shadow-md hover:bg-indigo-700 transition-colors duration-300 mr-2">
-                    <span class="hidden sm:inline">在線使用者</span>
-                    <span class="sm:hidden"><i class="fas fa-users"></i></span>
-                </button>
                 <button id="addTaskBtn" class="bg-blue-600 text-white font-semibold py-2 px-5 rounded-lg shadow-md hover:bg-blue-700 transition-colors duration-300">
                     <span class="hidden sm:inline">新增任務</span>
                     <span class="sm:hidden">+</span>
@@ -199,19 +195,6 @@
         </div>
     </div>
 
-    <!-- 在線使用者 Modal -->
-    <div id="onlineUsersModal" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center hidden z-50 p-4">
-        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
-            <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-200">
-                <h3 class="text-lg font-bold text-slate-700">目前在線使用者</h3>
-                <button id="closeOnlineUsersModalBtn" class="text-2xl font-bold text-slate-400 hover:text-slate-600 transition-colors">&times;</button>
-            </div>
-            <div id="online-users-list-container" class="space-y-3 max-h-60 overflow-y-auto">
-                <!-- User list will be populated here by JavaScript -->
-            </div>
-        </div>
-    </div>
-
 
     <script type="module">
         // 引入 Firebase SDK
@@ -225,547 +208,470 @@
             updateProfile
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getDatabase, ref, set, onDisconnect, remove, onValue } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 
-        const main = () => {
-            // --- Firebase 設定 ---
-            const firebaseConfig = {
-              apiKey: "AIzaSyAYefDi9Njm_hsJavgup05WyxhPlVIGlAA",
-              authDomain: "curly-happiness.firebaseapp.com",
-              projectId: "curly-happiness",
-              storageBucket: "curly-happiness.firebasestorage.app",
-              messagingSenderId: "556696470832",
-              appId: "1:556696470e7db40f3f5cc8c34f5",
-              databaseURL: "https://curly-happiness-default-rtdb.firebaseio.com"
-            };
+        // --- Firebase 設定 ---
+        const firebaseConfig = {
+          apiKey: "AIzaSyAYefDi9Njm_hsJavgup05WyxhPlVIGlAA",
+          authDomain: "curly-happiness.firebaseapp.com",
+          projectId: "curly-happiness",
+          storageBucket: "curly-happiness.firebasestorage.app",
+          messagingSenderId: "556696470832",
+          appId: "1:556696470e7db40f3f5cc8c34f5",
+          databaseURL: "https://curly-happiness-default-rtdb.firebaseio.com"
+        };
 
-            const app = initializeApp(firebaseConfig);
-            const auth = getAuth(app);
-            const db = getFirestore(app);
-            const rtdb = getDatabase(app);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
 
-            let tasksCollection;
-            let unsubscribe; // 用於取消即時監聽
-            let userStatusRef; // 用於儲存使用者在 Realtime DB 的狀態引用
-            let allTasks = { todo: [], inprogress: [], done: [] }; // 用於儲存所有任務的快取
+        let tasksCollection;
+        let unsubscribe; // 用於取消即時監聽
+        let allTasks = { todo: [], inprogress: [], done: [] }; // 用於儲存所有任務的快取
 
-            // --- DOM 元素選擇 ---
-            // 驗證區塊
-            const authContainer = document.getElementById('auth-container');
-            const loginView = document.getElementById('login-view');
-            const registerView = document.getElementById('register-view');
-            const loginForm = document.getElementById('login-form');
-            const registerForm = document.getElementById('register-form');
-            const showRegisterViewBtn = document.getElementById('show-register-view');
-            const showLoginViewBtn = document.getElementById('show-login-view');
-            const loginError = document.getElementById('login-error');
-            const registerError = document.getElementById('register-error');
+        // --- DOM 元素選擇 ---
+        // 驗證區塊
+        const authContainer = document.getElementById('auth-container');
+        const loginView = document.getElementById('login-view');
+        const registerView = document.getElementById('register-view');
+        const loginForm = document.getElementById('login-form');
+        const registerForm = document.getElementById('register-form');
+        const showRegisterViewBtn = document.getElementById('show-register-view');
+        const showLoginViewBtn = document.getElementById('show-login-view');
+        const loginError = document.getElementById('login-error');
+        const registerError = document.getElementById('register-error');
 
-            // 主應用程式區塊
-            const appContainer = document.getElementById('app-container');
-            const userDisplay = document.getElementById('user-display');
-            const logoutBtn = document.getElementById('logout-btn');
-            const addTaskBtn = document.getElementById('addTaskBtn');
-            const exportBtn = document.getElementById('exportBtn');
+        // 主應用程式區塊
+        const appContainer = document.getElementById('app-container');
+        const userDisplay = document.getElementById('user-display');
+        const logoutBtn = document.getElementById('logout-btn');
+        const addTaskBtn = document.getElementById('addTaskBtn');
+        const exportBtn = document.getElementById('exportBtn');
 
-            // Modal
-            const taskModal = document.getElementById('taskModal');
-            const taskForm = document.getElementById('taskForm');
-            const cancelBtn = document.getElementById('cancelBtn');
-            const columns = document.querySelectorAll('.tasks-container');
-            const modalTitle = document.getElementById('modalTitle');
-            const submitBtn = document.getElementById('submitBtn');
-            const editTaskIdInput = document.getElementById('editTaskId');
+        // Modal
+        const taskModal = document.getElementById('taskModal');
+        const taskForm = document.getElementById('taskForm');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const columns = document.querySelectorAll('.tasks-container');
+        const modalTitle = document.getElementById('modalTitle');
+        const submitBtn = document.getElementById('submitBtn');
+        const editTaskIdInput = document.getElementById('editTaskId');
 
-            // 刪除 Modal
-            const deleteConfirmModal = document.getElementById('deleteConfirmModal');
-            const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
-            const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+        // 刪除 Modal
+        const deleteConfirmModal = document.getElementById('deleteConfirmModal');
+        const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+        const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
 
-            // 在線使用者 Modal
-            const onlineUsersModal = document.getElementById('onlineUsersModal');
-            const closeOnlineUsersModalBtn = document.getElementById('closeOnlineUsersModalBtn');
-            const onlineUsersListContainer = document.getElementById('online-users-list-container');
-            const showOnlineUsersBtn = document.getElementById('showOnlineUsersBtn');
+        // --- 驗證狀態管理 ---
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                // 使用者已登入
+                authContainer.classList.add('hidden');
+                appContainer.classList.remove('hidden');
+                appContainer.classList.add('flex');
+                userDisplay.textContent = user.displayName || user.email;
 
-            // --- 在線狀態管理 (Presence) ---
-            let onlineUsersUnsubscribe = null;
+                // 初始化看板
+                tasksCollection = collection(db, 'tasks');
+                setupRealtimeListener();
+            } else {
+                // 使用者已登出或未登入
+                authContainer.classList.remove('hidden');
+                appContainer.classList.add('hidden');
+                appContainer.classList.remove('flex');
+                userDisplay.textContent = '';
 
-            function managePresence(user) {
-                userStatusRef = ref(rtdb, 'status/' + user.uid);
-                const userStatus = {
-                    name: user.displayName || user.email,
-                    status: 'online',
-                };
-                onDisconnect(userStatusRef).remove();
-                set(userStatusRef, userStatus);
-            }
-
-            function setupOnlineUsersListener() {
-                const statusRef = ref(rtdb, 'status/');
-                onlineUsersUnsubscribe = onValue(statusRef, (snapshot) => {
-                    const onlineUsers = snapshot.val();
-                    onlineUsersListContainer.innerHTML = ''; // Clear previous list
-
-                    if (onlineUsers && Object.keys(onlineUsers).length > 0) {
-                        Object.values(onlineUsers).forEach(user => {
-                            const userElement = document.createElement('div');
-                            userElement.className = 'flex items-center gap-3 p-2';
-
-                            const statusDot = document.createElement('div');
-                            statusDot.className = 'w-2.5 h-2.5 bg-green-500 rounded-full';
-
-                            const userName = document.createElement('span');
-                            userName.className = 'text-slate-700 font-medium';
-                            userName.textContent = user.name;
-
-                            userElement.appendChild(statusDot);
-                            userElement.appendChild(userName);
-                            onlineUsersListContainer.appendChild(userElement);
-                        });
-                    } else {
-                        onlineUsersListContainer.innerHTML = '<p class="text-slate-500 text-center py-2">目前沒有其他人在線。</p>';
-                    }
-                });
-            }
-
-            // --- 驗證狀態管理 ---
-            onAuthStateChanged(auth, async (user) => {
-                if (user) {
-                    // 使用者已登入
-                    authContainer.classList.add('hidden');
-                    appContainer.classList.remove('hidden');
-                    appContainer.classList.add('flex');
-                    userDisplay.textContent = user.displayName || user.email;
-
-                    // 初始化看板和在線狀態
-                    tasksCollection = collection(db, 'tasks');
-                    setupRealtimeListener();
-                    managePresence(user);
-                    setupOnlineUsersListener();
-                } else {
-                    // 使用者已登出或未登入
-                    if (userStatusRef) {
-                        try {
-                            // 確保在登出時也清除在線狀態
-                            await remove(userStatusRef);
-                        } catch (error) {
-                            console.error("Error removing user status on logout:", error);
-                        }
-                    }
-                    userStatusRef = null;
-
-                    authContainer.classList.remove('hidden');
-                    appContainer.classList.add('hidden');
-                    appContainer.classList.remove('flex');
-                    userDisplay.textContent = '';
-
-                    // 確保登出後永遠顯示登入畫面
-                    loginView.classList.remove('hidden');
-                    registerView.classList.add('hidden');
-
-                    // 如果存在監聽器，則取消訂閱
-                    if (unsubscribe) {
-                        unsubscribe();
-                        unsubscribe = null;
-                    }
-                    if (onlineUsersUnsubscribe) {
-                        onlineUsersUnsubscribe();
-                        onlineUsersUnsubscribe = null;
-                    }
-                    // 清空看板
-                    columns.forEach(col => col.innerHTML = '');
-                }
-            });
-
-            // --- UI切換 ---
-            showRegisterViewBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                loginView.classList.add('hidden');
-                registerView.classList.remove('hidden');
-                loginError.textContent = '';
-                registerError.textContent = '';
-            });
-
-            showLoginViewBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                registerView.classList.add('hidden');
+                // 確保登出後永遠顯示登入畫面
                 loginView.classList.remove('hidden');
-                loginError.textContent = '';
-                registerError.textContent = '';
-            });
+                registerView.classList.add('hidden');
 
-            // --- 驗證邏輯 ---
-            loginForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const email = loginForm['login-email'].value;
-                const password = loginForm['login-password'].value;
-                loginError.textContent = '';
-                try {
-                    await signInWithEmailAndPassword(auth, email, password);
-                } catch (error) {
-                    console.error("登入失敗:", error.message);
-                    loginError.textContent = '登入失敗，請檢查您的Email和密碼。';
+                // 如果存在監聽器，則取消訂閱
+                if (unsubscribe) {
+                    unsubscribe();
+                    unsubscribe = null;
                 }
-            });
-
-            registerForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const name = registerForm['register-name'].value.trim();
-                const email = registerForm['register-email'].value;
-                const password = registerForm['register-password'].value;
-                registerError.textContent = '';
-
-                if (!name) {
-                    registerError.textContent = '請輸入您的名稱。';
-                    return;
-                }
-
-                try {
-                    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-                    // After user is created, update their profile with the name
-                    await updateProfile(userCredential.user, {
-                        displayName: name
-                    });
-                    // The onAuthStateChanged listener will automatically handle the UI transition
-                } catch (error) {
-                    console.error("註冊失敗:", error.message);
-                    // Provide more specific feedback if possible
-                    if (error.code === 'auth/email-already-in-use') {
-                        registerError.textContent = '這個Email已經被註冊了。';
-                    } else if (error.code === 'auth/weak-password') {
-                        registerError.textContent = '密碼太弱，請至少使用6個字元。';
-                    } else {
-                        registerError.textContent = '註冊失敗，請稍後再試。';
-                    }
-                }
-            });
-
-            logoutBtn.addEventListener('click', async () => {
-                try {
-                    // The onAuthStateChanged observer will handle cleaning up the user's presence.
-                    await signOut(auth);
-                } catch (error) {
-                     console.error("登出失敗:", error);
-                }
-            });
-
-
-            // --- Excel 匯出功能 ---
-            const exportTasks = () => {
-                const tasksToExport = [...allTasks.todo, ...allTasks.inprogress];
-
-                if (tasksToExport.length === 0) {
-                    alert('沒有可匯出的任務。');
-                    return;
-                }
-
-                const statusMapping = {
-                    todo: '待辦事項',
-                    inprogress: '進行中'
-                };
-
-                const priorityMapping = {
-                    high: '高',
-                    medium: '中',
-                    low: '低'
-                };
-
-                const formattedTasks = tasksToExport.map(task => ({
-                    '狀態': statusMapping[task.columnId] || task.columnId,
-                    '優先權': priorityMapping[task.priority] || task.priority,
-                    '標題': task.title,
-                    '描述': task.description || '',
-                    '負責人': task.pic || ''
-                }));
-
-                const worksheet = XLSX.utils.json_to_sheet(formattedTasks);
-                const workbook = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(workbook, worksheet, '進行中的任務');
-
-                // 自動調整欄寬
-                const colWidths = Object.keys(formattedTasks[0]).map(key => ({
-                    wch: formattedTasks.reduce((w, r) => Math.max(w, r[key].toString().length), 10)
-                }));
-                worksheet['!cols'] = colWidths;
-
-                XLSX.writeFile(workbook, 'Kanban_Tasks_Export.xlsx');
-            };
-
-            // --- 即時資料監聽 ---
-            function setupRealtimeListener() {
-                if (!tasksCollection) return;
-                if (unsubscribe) unsubscribe();
-
-                unsubscribe = onSnapshot(tasksCollection, (snapshot) => {
-                    // Reset local cache
-                    allTasks = { todo: [], inprogress: [], done: [] };
-                    snapshot.docs.forEach(doc => {
-                        const task = { id: doc.id, ...doc.data() };
-                        if (allTasks[task.columnId]) {
-                            allTasks[task.columnId].push(task);
-                        }
-                    });
-                    // Render tasks on the board
-                    renderTasks(allTasks);
-                });
-            }
-
-
-            // --- Modal 控制 ---
-            const openAddModal = () => {
-                taskForm.reset();
-                editTaskIdInput.value = '';
-                modalTitle.textContent = '新增一個任務';
-                submitBtn.textContent = '建立任務';
-                taskModal.classList.remove('hidden');
-            };
-
-            const openEditModal = (task) => {
-                taskForm.reset();
-                editTaskIdInput.value = task.id;
-                taskForm.taskTitle.value = task.title;
-                taskForm.taskDesc.value = task.description;
-                taskForm.taskPIC.value = task.pic;
-                taskForm.taskPriority.value = task.priority || 'medium';
-                modalTitle.textContent = '編輯任務';
-                submitBtn.textContent = '儲存變更';
-                taskModal.classList.remove('hidden');
-            };
-
-            const hideModal = () => {
-                taskModal.classList.add('hidden');
-                taskForm.reset();
-            };
-
-            addTaskBtn.addEventListener('click', openAddModal);
-            exportBtn.addEventListener('click', exportTasks);
-            cancelBtn.addEventListener('click', hideModal);
-            taskModal.addEventListener('click', (e) => {
-                if (e.target === taskModal) hideModal();
-            });
-
-            // 在線使用者 Modal 控制
-            const hideOnlineUsersModal = () => onlineUsersModal.classList.add('hidden');
-            showOnlineUsersBtn.addEventListener('click', () => onlineUsersModal.classList.remove('hidden'));
-            closeOnlineUsersModalBtn.addEventListener('click', hideOnlineUsersModal);
-            onlineUsersModal.addEventListener('click', (e) => {
-                if (e.target === onlineUsersModal) hideOnlineUsersModal();
-            });
-
-
-            // --- 任務管理 (Firestore) ---
-            const renderTasks = (tasks) => {
+                // 清空看板
                 columns.forEach(col => col.innerHTML = '');
-                Object.entries(tasks).forEach(([columnId, taskList]) => {
-                    const columnEl = document.querySelector(`[data-column-id="${columnId}"]`);
-                    if (!columnEl) return;
+            }
+        });
 
-                    const priorityOrder = { high: 1, medium: 2, low: 3 };
-                    const sortedTasks = taskList.sort((a, b) => {
-                        const priorityA = priorityOrder[a.priority] || 4;
-                        const priorityB = priorityOrder[b.priority] || 4;
-                        return priorityA - priorityB;
-                    });
+        // --- UI切換 ---
+        showRegisterViewBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            loginView.classList.add('hidden');
+            registerView.classList.remove('hidden');
+            loginError.textContent = '';
+            registerError.textContent = '';
+        });
 
-                    sortedTasks.forEach(task => {
-                        const taskCard = createTaskCard(task);
-                        columnEl.appendChild(taskCard);
-                    });
-                });
-            };
+        showLoginViewBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            registerView.classList.add('hidden');
+            loginView.classList.remove('hidden');
+            loginError.textContent = '';
+            registerError.textContent = '';
+        });
 
-            const createTaskCard = (task) => {
-                const card = document.createElement('div');
-                card.className = 'bg-white p-4 rounded-lg shadow-sm mb-4 cursor-grab active:cursor-grabbing flex flex-col';
-                card.draggable = true;
-                card.dataset.taskId = task.id;
+        // --- 驗證邏輯 ---
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = loginForm['login-email'].value;
+            const password = loginForm['login-password'].value;
+            loginError.textContent = '';
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+            } catch (error) {
+                console.error("登入失敗:", error.message);
+                loginError.textContent = '登入失敗，請檢查您的Email和密碼。';
+            }
+        });
 
-                const contentWrapper = document.createElement('div');
-                contentWrapper.className = 'flex-grow';
+        registerForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = registerForm['register-name'].value.trim();
+            const email = registerForm['register-email'].value;
+            const password = registerForm['register-password'].value;
+            registerError.textContent = '';
 
-                const header = document.createElement('div');
-                header.className = 'flex justify-between items-start mb-1';
-
-                const title = document.createElement('h3');
-                title.className = 'font-semibold break-words mr-2';
-                title.textContent = task.title;
-
-                // 優先權指示器 (圓點 + 文字)
-                const priorityContainer = document.createElement('div');
-                priorityContainer.className = 'flex items-center gap-1.5 flex-shrink-0';
-
-                const priorityDot = document.createElement('span');
-                priorityDot.className = 'w-3 h-3 rounded-full';
-
-                const priorityText = document.createElement('span');
-                priorityText.className = 'text-xs font-semibold';
-
-                const priorityMap = {
-                    high:   { text: '高', bg: 'bg-red-500', textColor: 'text-red-600' },
-                    medium: { text: '中', bg: 'bg-blue-500', textColor: 'text-blue-600' },
-                    low:    { text: '低', bg: 'bg-green-500', textColor: 'text-green-600' }
-                };
-
-                const priorityInfo = priorityMap[task.priority] || priorityMap.medium;
-
-                priorityDot.classList.add(priorityInfo.bg);
-                priorityText.classList.add(priorityInfo.textColor);
-                priorityText.textContent = priorityInfo.text;
-
-                priorityContainer.appendChild(priorityDot);
-                priorityContainer.appendChild(priorityText);
-
-                header.appendChild(title);
-                header.appendChild(priorityContainer);
-                contentWrapper.appendChild(header);
-
-
-                if (task.description) {
-                    const desc = document.createElement('p');
-                    desc.className = 'text-sm text-slate-600 whitespace-pre-wrap break-words';
-                    desc.textContent = task.description;
-                    contentWrapper.appendChild(desc);
-                }
-
-                const footer = document.createElement('div');
-                footer.className = 'flex justify-between items-center mt-4 pt-2 border-t border-slate-100';
-
-                const picDisplay = document.createElement('span');
-                picDisplay.className = 'text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-full';
-                picDisplay.textContent = task.pic ? `負責人: ${task.pic}` : '';
-                picDisplay.style.display = task.pic ? 'inline-block' : 'none';
-
-                const actions = document.createElement('div');
-                actions.className = 'task-actions flex items-center gap-3';
-
-                const editBtn = document.createElement('button');
-                editBtn.className = 'text-sm text-slate-500 hover:text-blue-600';
-                editBtn.innerHTML = '<i class="fas fa-pencil-alt"></i>';
-                editBtn.onclick = () => openEditModal(task);
-
-                const deleteBtn = document.createElement('button');
-                deleteBtn.className = 'text-sm text-red-400 hover:text-red-600';
-                deleteBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
-                deleteBtn.onclick = () => showDeleteConfirmModal(task.id);
-
-                actions.appendChild(editBtn);
-                actions.appendChild(deleteBtn);
-
-                footer.appendChild(picDisplay);
-                footer.appendChild(actions);
-
-                card.appendChild(contentWrapper);
-                card.appendChild(footer);
-
-                card.addEventListener('dragstart', handleDragStart);
-                card.addEventListener('dragend', handleDragEnd);
-
-                return card;
-            };
-
-            taskForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const taskId = editTaskIdInput.value;
-                const taskData = {
-                    title: taskForm.taskTitle.value.trim(),
-                    description: taskForm.taskDesc.value.trim(),
-                    pic: taskForm.taskPIC.value.trim(),
-                    priority: taskForm.taskPriority.value,
-                };
-
-                if (!taskData.title || !tasksCollection) return;
-
-                try {
-                    if (taskId) { // 編輯模式
-                        const taskDocRef = doc(tasksCollection, taskId);
-                        await updateDoc(taskDocRef, taskData);
-                    } else { // 新增模式
-                        await addDoc(tasksCollection, {
-                            ...taskData,
-                            columnId: 'todo', // 新任務預設在 '待辦事項'
-                            createdAt: serverTimestamp()
-                        });
-                    }
-                } catch (error) {
-                    console.error("儲存任務失敗:", error);
-                }
-
-                hideModal();
-            });
-
-            // --- 刪除確認 ---
-            let taskIdToDelete = null;
-
-            const showDeleteConfirmModal = (taskId) => {
-                taskIdToDelete = taskId;
-                deleteConfirmModal.classList.remove('hidden');
-            };
-
-            const hideDeleteConfirmModal = () => {
-                taskIdToDelete = null;
-                deleteConfirmModal.classList.add('hidden');
-            };
-
-            cancelDeleteBtn.addEventListener('click', hideDeleteConfirmModal);
-            deleteConfirmModal.addEventListener('click', (e) => {
-                if (e.target === deleteConfirmModal) hideDeleteConfirmModal();
-            });
-
-            confirmDeleteBtn.addEventListener('click', async () => {
-                if (!taskIdToDelete || !tasksCollection) return;
-                try {
-                    const taskDocRef = doc(tasksCollection, taskIdToDelete);
-                    await deleteDoc(taskDocRef);
-                } catch (error) {
-                    console.error("刪除任務失敗:", error);
-                }
-                hideDeleteConfirmModal();
-            });
-
-            // --- 拖放功能 ---
-            let draggedItem = null;
-
-            function handleDragStart() {
-                draggedItem = this;
-                setTimeout(() => this.classList.add('dragging'), 0);
+            if (!name) {
+                registerError.textContent = '請輸入您的名稱。';
+                return;
             }
 
-            function handleDragEnd() {
-                this.classList.remove('dragging');
-                draggedItem = null;
+            try {
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                // After user is created, update their profile with the name
+                await updateProfile(userCredential.user, {
+                    displayName: name
+                });
+                // The onAuthStateChanged listener will automatically handle the UI transition
+            } catch (error) {
+                console.error("註冊失敗:", error.message);
+                // Provide more specific feedback if possible
+                if (error.code === 'auth/email-already-in-use') {
+                    registerError.textContent = '這個Email已經被註冊了。';
+                } else if (error.code === 'auth/weak-password') {
+                    registerError.textContent = '密碼太弱，請至少使用6個字元。';
+                } else {
+                    registerError.textContent = '註冊失敗，請稍後再試。';
+                }
+            }
+        });
+
+        logoutBtn.addEventListener('click', async () => {
+            try {
+                // The onAuthStateChanged observer will handle cleaning up the user's presence.
+                await signOut(auth);
+            } catch (error) {
+                 console.error("登出失敗:", error);
+            }
+        });
+
+
+        // --- Excel 匯出功能 ---
+        const exportTasks = () => {
+            const tasksToExport = [...allTasks.todo, ...allTasks.inprogress];
+
+            if (tasksToExport.length === 0) {
+                alert('沒有可匯出的任務。');
+                return;
             }
 
-            columns.forEach(column => {
-                column.addEventListener('dragover', e => e.preventDefault());
-                column.addEventListener('dragenter', e => {
-                    e.preventDefault();
-                    column.classList.add('drag-over');
-                });
-                column.addEventListener('dragleave', () => column.classList.remove('drag-over'));
-                column.addEventListener('drop', async (e) => {
-                    e.preventDefault();
-                    column.classList.remove('drag-over');
+            const statusMapping = {
+                todo: '待辦事項',
+                inprogress: '進行中'
+            };
 
-                    if (draggedItem) {
-                        const targetColumnId = column.dataset.columnId;
-                        const taskId = draggedItem.dataset.taskId;
+            const priorityMapping = {
+                high: '高',
+                medium: '中',
+                low: '低'
+            };
 
-                        if (!taskId || !targetColumnId || !tasksCollection) return;
+            const formattedTasks = tasksToExport.map(task => ({
+                '狀態': statusMapping[task.columnId] || task.columnId,
+                '優先權': priorityMapping[task.priority] || task.priority,
+                '標題': task.title,
+                '描述': task.description || '',
+                '負責人': task.pic || ''
+            }));
 
-                        try {
-                            const taskDocRef = doc(tasksCollection, taskId);
-                            await updateDoc(taskDocRef, { columnId: targetColumnId });
-                        } catch (error) {
-                            console.error("移動任務失敗:", error);
-                            // 如果更新失敗，最好重新渲染以保持UI與數據庫同步
-                            setupRealtimeListener();
-                        }
+            const worksheet = XLSX.utils.json_to_sheet(formattedTasks);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, '進行中的任務');
+
+            // 自動調整欄寬
+            const colWidths = Object.keys(formattedTasks[0]).map(key => ({
+                wch: formattedTasks.reduce((w, r) => Math.max(w, r[key].toString().length), 10)
+            }));
+            worksheet['!cols'] = colWidths;
+
+            XLSX.writeFile(workbook, 'Kanban_Tasks_Export.xlsx');
+        };
+
+        // --- 即時資料監聽 ---
+        function setupRealtimeListener() {
+            if (!tasksCollection) return;
+            if (unsubscribe) unsubscribe();
+
+            unsubscribe = onSnapshot(tasksCollection, (snapshot) => {
+                // Reset local cache
+                allTasks = { todo: [], inprogress: [], done: [] };
+                snapshot.docs.forEach(doc => {
+                    const task = { id: doc.id, ...doc.data() };
+                    if (allTasks[task.columnId]) {
+                        allTasks[task.columnId].push(task);
                     }
+                });
+                // Render tasks on the board
+                renderTasks(allTasks);
+            });
+        }
+
+
+        // --- Modal 控制 ---
+        const openAddModal = () => {
+            taskForm.reset();
+            editTaskIdInput.value = '';
+            modalTitle.textContent = '新增一個任務';
+            submitBtn.textContent = '建立任務';
+            taskModal.classList.remove('hidden');
+        };
+
+        const openEditModal = (task) => {
+            taskForm.reset();
+            editTaskIdInput.value = task.id;
+            taskForm.taskTitle.value = task.title;
+            taskForm.taskDesc.value = task.description;
+            taskForm.taskPIC.value = task.pic;
+            taskForm.taskPriority.value = task.priority || 'medium';
+            modalTitle.textContent = '編輯任務';
+            submitBtn.textContent = '儲存變更';
+            taskModal.classList.remove('hidden');
+        };
+
+        const hideModal = () => {
+            taskModal.classList.add('hidden');
+            taskForm.reset();
+        };
+
+        addTaskBtn.addEventListener('click', openAddModal);
+        exportBtn.addEventListener('click', exportTasks);
+        cancelBtn.addEventListener('click', hideModal);
+        taskModal.addEventListener('click', (e) => {
+            if (e.target === taskModal) hideModal();
+        });
+
+
+        // --- 任務管理 (Firestore) ---
+        const renderTasks = (tasks) => {
+            columns.forEach(col => col.innerHTML = '');
+            Object.entries(tasks).forEach(([columnId, taskList]) => {
+                const columnEl = document.querySelector(`[data-column-id="${columnId}"]`);
+                if (!columnEl) return;
+
+                const priorityOrder = { high: 1, medium: 2, low: 3 };
+                const sortedTasks = taskList.sort((a, b) => {
+                    const priorityA = priorityOrder[a.priority] || 4;
+                    const priorityB = priorityOrder[b.priority] || 4;
+                    return priorityA - priorityB;
+                });
+
+                sortedTasks.forEach(task => {
+                    const taskCard = createTaskCard(task);
+                    columnEl.appendChild(taskCard);
                 });
             });
         };
-        document.addEventListener('DOMContentLoaded', main);
+
+        const createTaskCard = (task) => {
+            const card = document.createElement('div');
+            card.className = 'bg-white p-4 rounded-lg shadow-sm mb-4 cursor-grab active:cursor-grabbing flex flex-col';
+            card.draggable = true;
+            card.dataset.taskId = task.id;
+
+            const contentWrapper = document.createElement('div');
+            contentWrapper.className = 'flex-grow';
+
+            const header = document.createElement('div');
+            header.className = 'flex justify-between items-start mb-1';
+
+            const title = document.createElement('h3');
+            title.className = 'font-semibold break-words mr-2';
+            title.textContent = task.title;
+
+            // 優先權指示器 (圓點 + 文字)
+            const priorityContainer = document.createElement('div');
+            priorityContainer.className = 'flex items-center gap-1.5 flex-shrink-0';
+
+            const priorityDot = document.createElement('span');
+            priorityDot.className = 'w-3 h-3 rounded-full';
+
+            const priorityText = document.createElement('span');
+            priorityText.className = 'text-xs font-semibold';
+
+            const priorityMap = {
+                high:   { text: '高', bg: 'bg-red-500', textColor: 'text-red-600' },
+                medium: { text: '中', bg: 'bg-blue-500', textColor: 'text-blue-600' },
+                low:    { text: '低', bg: 'bg-green-500', textColor: 'text-green-600' }
+            };
+
+            const priorityInfo = priorityMap[task.priority] || priorityMap.medium;
+
+            priorityDot.classList.add(priorityInfo.bg);
+            priorityText.classList.add(priorityInfo.textColor);
+            priorityText.textContent = priorityInfo.text;
+
+            priorityContainer.appendChild(priorityDot);
+            priorityContainer.appendChild(priorityText);
+
+            header.appendChild(title);
+            header.appendChild(priorityContainer);
+            contentWrapper.appendChild(header);
+
+
+            if (task.description) {
+                const desc = document.createElement('p');
+                desc.className = 'text-sm text-slate-600 whitespace-pre-wrap break-words';
+                desc.textContent = task.description;
+                contentWrapper.appendChild(desc);
+            }
+
+            const footer = document.createElement('div');
+            footer.className = 'flex justify-between items-center mt-4 pt-2 border-t border-slate-100';
+
+            const picDisplay = document.createElement('span');
+            picDisplay.className = 'text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-full';
+            picDisplay.textContent = task.pic ? `負責人: ${task.pic}` : '';
+            picDisplay.style.display = task.pic ? 'inline-block' : 'none';
+
+            const actions = document.createElement('div');
+            actions.className = 'task-actions flex items-center gap-3';
+
+            const editBtn = document.createElement('button');
+            editBtn.className = 'text-sm text-slate-500 hover:text-blue-600';
+            editBtn.innerHTML = '<i class="fas fa-pencil-alt"></i>';
+            editBtn.onclick = () => openEditModal(task);
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'text-sm text-red-400 hover:text-red-600';
+            deleteBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
+            deleteBtn.onclick = () => showDeleteConfirmModal(task.id);
+
+            actions.appendChild(editBtn);
+            actions.appendChild(deleteBtn);
+
+            footer.appendChild(picDisplay);
+            footer.appendChild(actions);
+
+            card.appendChild(contentWrapper);
+            card.appendChild(footer);
+
+            card.addEventListener('dragstart', handleDragStart);
+            card.addEventListener('dragend', handleDragEnd);
+
+            return card;
+        };
+
+        taskForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const taskId = editTaskIdInput.value;
+            const taskData = {
+                title: taskForm.taskTitle.value.trim(),
+                description: taskForm.taskDesc.value.trim(),
+                pic: taskForm.taskPIC.value.trim(),
+                priority: taskForm.taskPriority.value,
+            };
+
+            if (!taskData.title || !tasksCollection) return;
+
+            try {
+                if (taskId) { // 編輯模式
+                    const taskDocRef = doc(tasksCollection, taskId);
+                    await updateDoc(taskDocRef, taskData);
+                } else { // 新增模式
+                    await addDoc(tasksCollection, {
+                        ...taskData,
+                        columnId: 'todo', // 新任務預設在 '待辦事項'
+                        createdAt: serverTimestamp()
+                    });
+                }
+            } catch (error) {
+                console.error("儲存任務失敗:", error);
+            }
+
+            hideModal();
+        });
+
+        // --- 刪除確認 ---
+        let taskIdToDelete = null;
+
+        const showDeleteConfirmModal = (taskId) => {
+            taskIdToDelete = taskId;
+            deleteConfirmModal.classList.remove('hidden');
+        };
+
+        const hideDeleteConfirmModal = () => {
+            taskIdToDelete = null;
+            deleteConfirmModal.classList.add('hidden');
+        };
+
+        cancelDeleteBtn.addEventListener('click', hideDeleteConfirmModal);
+        deleteConfirmModal.addEventListener('click', (e) => {
+            if (e.target === deleteConfirmModal) hideDeleteConfirmModal();
+        });
+
+        confirmDeleteBtn.addEventListener('click', async () => {
+            if (!taskIdToDelete || !tasksCollection) return;
+            try {
+                const taskDocRef = doc(tasksCollection, taskIdToDelete);
+                await deleteDoc(taskDocRef);
+            } catch (error) {
+                console.error("刪除任務失敗:", error);
+            }
+            hideDeleteConfirmModal();
+        });
+
+        // --- 拖放功能 ---
+        let draggedItem = null;
+
+        function handleDragStart() {
+            draggedItem = this;
+            setTimeout(() => this.classList.add('dragging'), 0);
+        }
+
+        function handleDragEnd() {
+            this.classList.remove('dragging');
+            draggedItem = null;
+        }
+
+        columns.forEach(column => {
+            column.addEventListener('dragover', e => e.preventDefault());
+            column.addEventListener('dragenter', e => {
+                e.preventDefault();
+                column.classList.add('drag-over');
+            });
+            column.addEventListener('dragleave', () => column.classList.remove('drag-over'));
+            column.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                column.classList.remove('drag-over');
+
+                if (draggedItem) {
+                    const targetColumnId = column.dataset.columnId;
+                    const taskId = draggedItem.dataset.taskId;
+
+                    if (!taskId || !targetColumnId || !tasksCollection) return;
+
+                    try {
+                        const taskDocRef = doc(tasksCollection, taskId);
+                        await updateDoc(taskDocRef, { columnId: targetColumnId });
+                    } catch (error) {
+                        console.error("移動任務失敗:", error);
+                        // 如果更新失敗，最好重新渲染以保持UI與數據庫同步
+                        setupRealtimeListener();
+                    }
+                }
+            });
+        });
 
     </script>
 </body>
