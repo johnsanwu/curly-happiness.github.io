@@ -163,14 +163,6 @@
                     <label for="taskDesc" class="block text-sm font-medium text-slate-600 mb-1">描述 (可選)</label>
                     <textarea id="taskDesc" name="taskDesc" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500" placeholder="為您的任務添加更多細節..."></textarea>
                 </div>
-                <div class="mb-4">
-                    <label for="taskImage" class="block text-sm font-medium text-slate-600 mb-1">附圖 (可選)</label>
-                    <input type="file" id="taskImage" name="taskImage" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" accept="image/*">
-                    <div id="imagePreviewContainer" class="mt-2 hidden">
-                        <img id="imagePreview" src="#" alt="Image Preview" class="max-h-40 rounded-md">
-                        <button type="button" id="removeImageBtn" class="mt-1 text-xs text-red-500">移除圖片</button>
-                    </div>
-                </div>
                  <div class="mb-4">
                     <label for="taskPriority" class="block text-sm font-medium text-slate-600 mb-1">優先權</label>
                     <select id="taskPriority" name="taskPriority" class="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white">
@@ -203,11 +195,6 @@
         </div>
     </div>
 
-    <!-- 圖片檢視 Modal -->
-    <div id="imageModal" class="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center hidden z-50 p-4">
-        <span id="closeImageModal" class="absolute top-4 right-6 text-white text-4xl font-bold cursor-pointer">&times;</span>
-        <img id="fullSizeImage" class="max-w-full max-h-full rounded-lg">
-    </div>
 
 
     <script type="module">
@@ -222,7 +209,6 @@
             updateProfile
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
 
         // --- Firebase 設定 ---
         const firebaseConfig = {
@@ -238,7 +224,6 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const storage = getStorage(app);
 
         let tasksCollection;
         let unsubscribe; // 用於取消即時監聽
@@ -276,17 +261,6 @@
         const deleteConfirmModal = document.getElementById('deleteConfirmModal');
         const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
         const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
-
-        // 圖片上傳
-        const taskImageInput = document.getElementById('taskImage');
-        const imagePreviewContainer = document.getElementById('imagePreviewContainer');
-        const imagePreview = document.getElementById('imagePreview');
-        const removeImageBtn = document.getElementById('removeImageBtn');
-
-        // 圖片檢視 Modal
-        const imageModal = document.getElementById('imageModal');
-        const fullSizeImage = document.getElementById('fullSizeImage');
-        const closeImageModal = document.getElementById('closeImageModal');
 
         // --- 驗證狀態管理 ---
         onAuthStateChanged(auth, async (user) => {
@@ -466,21 +440,12 @@
 
         const openEditModal = (task) => {
             taskForm.reset();
-            // 清除舊的圖片預覽
-            imagePreview.src = '#';
-            imagePreviewContainer.classList.add('hidden');
 
             editTaskIdInput.value = task.id;
             taskForm.taskTitle.value = task.title;
             taskForm.taskDesc.value = task.description;
             taskForm.taskPIC.value = task.pic;
             taskForm.taskPriority.value = task.priority || 'medium';
-
-            // 顯示已存在的圖片
-            if (task.imageUrl) {
-                imagePreview.src = task.imageUrl;
-                imagePreviewContainer.classList.remove('hidden');
-            }
 
             modalTitle.textContent = '編輯任務';
             submitBtn.textContent = '儲存變更';
@@ -498,44 +463,6 @@
         taskModal.addEventListener('click', (e) => {
             if (e.target === taskModal) hideModal();
         });
-
-        // --- 圖片預覽處理 ---
-        taskImageInput.addEventListener('change', () => {
-            const file = taskImageInput.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    imagePreview.src = e.target.result;
-                    imagePreviewContainer.classList.remove('hidden');
-                };
-                reader.readAsDataURL(file);
-            }
-        });
-
-        removeImageBtn.addEventListener('click', () => {
-            taskImageInput.value = ''; // 清除選擇的檔案
-            imagePreview.src = '#';
-            imagePreviewContainer.classList.add('hidden');
-        });
-
-        // --- 圖片檢視 Modal 控制 ---
-        const openImageModal = (imageUrl) => {
-            fullSizeImage.src = imageUrl;
-            imageModal.classList.remove('hidden');
-        };
-
-        const closeImageModalHandler = () => {
-            imageModal.classList.add('hidden');
-            fullSizeImage.src = '';
-        };
-
-        closeImageModal.addEventListener('click', closeImageModalHandler);
-        imageModal.addEventListener('click', (e) => {
-            if (e.target === imageModal) {
-                closeImageModalHandler();
-            }
-        });
-
 
         // --- 任務管理 (Firestore) ---
         const renderTasks = (tasks) => {
@@ -604,14 +531,6 @@
             contentWrapper.appendChild(header);
 
 
-            if (task.imageUrl) {
-                const image = document.createElement('img');
-                image.src = task.imageUrl;
-                image.className = 'mt-2 rounded-md w-full h-auto cursor-pointer';
-                image.onclick = () => openImageModal(task.imageUrl);
-                contentWrapper.appendChild(image);
-            }
-
             if (task.description) {
                 const desc = document.createElement('p');
                 desc.className = 'text-sm text-slate-600 whitespace-pre-wrap break-words mt-2';
@@ -674,42 +593,7 @@
                 return;
             }
 
-            const imageFile = taskImageInput.files[0];
-            const isImageRemoved = imagePreview.src.includes('#');
-
             try {
-                let existingTask = null;
-                if (taskId) {
-                    // In edit mode, find the task to check for an existing image
-                    for (const column in allTasks) {
-                        const found = allTasks[column].find(t => t.id === taskId);
-                        if (found) {
-                            existingTask = found;
-                            break;
-                        }
-                    }
-                }
-
-                // Case 1: New image is uploaded
-                if (imageFile) {
-                    // If there was an old image, delete it first
-                    if (existingTask && existingTask.imageUrl) {
-                        const oldImageRef = ref(storage, existingTask.imageUrl);
-                        await deleteObject(oldImageRef).catch(err => console.error("舊圖片刪除失敗", err));
-                    }
-                    // Upload new image
-                    const imageRef = ref(storage, `tasks/${Date.now()}_${imageFile.name}`);
-                    await uploadBytes(imageRef, imageFile);
-                    taskData.imageUrl = await getDownloadURL(imageRef);
-                }
-                // Case 2: Existing image is removed by the user
-                else if (taskId && isImageRemoved && existingTask && existingTask.imageUrl) {
-                     const oldImageRef = ref(storage, existingTask.imageUrl);
-                     await deleteObject(oldImageRef).catch(err => console.error("舊圖片刪除失敗", err));
-                     taskData.imageUrl = null; // Remove from Firestore
-                }
-
-
                 if (taskId) { // 編輯模式
                     const taskDocRef = doc(tasksCollection, taskId);
                     await updateDoc(taskDocRef, taskData);
@@ -750,23 +634,7 @@
         confirmDeleteBtn.addEventListener('click', async () => {
             if (!taskIdToDelete || !tasksCollection) return;
 
-            // Find the task to get the imageUrl
-            let taskToDelete = null;
-            for (const column in allTasks) {
-                const found = allTasks[column].find(t => t.id === taskIdToDelete);
-                if (found) {
-                    taskToDelete = found;
-                    break;
-                }
-            }
-
             try {
-                // If the task has an image, delete it from Storage
-                if (taskToDelete && taskToDelete.imageUrl) {
-                    const imageRef = ref(storage, taskToDelete.imageUrl);
-                    await deleteObject(imageRef).catch(err => console.error("圖片刪除失敗", err));
-                }
-
                 // Delete the task document from Firestore
                 const taskDocRef = doc(tasksCollection, taskIdToDelete);
                 await deleteDoc(taskDocRef);
