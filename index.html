@@ -211,8 +211,11 @@
         import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Firebase 設定 ---
+        // 重要：請將下面的 firebaseConfig 物件替换為您自己的 Firebase 專案設定。
+        // 您可以從 Firebase 控制台的專案設定中找到這些值。
+        // apiKey 是不正確的，這很可能是您的應用程式無法正常運作的原因。
         const firebaseConfig = {
-          apiKey: "AIzaSyAYefDi9Njm_hsJavgup05WyxhPlVIGlAA",
+          apiKey: "YOUR_API_KEY_HERE", // <-- 請替換為您的 API 金鑰
           authDomain: "curly-happiness.firebaseapp.com",
           projectId: "curly-happiness",
           storageBucket: "curly-happiness.firebasestorage.app",
