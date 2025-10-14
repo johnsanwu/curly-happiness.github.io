@@ -213,15 +213,14 @@
         // --- Firebase 設定 ---
         // 重要：請將下面的 firebaseConfig 物件替换為您自己的 Firebase 專案設定。
         // 您可以從 Firebase 控制台的專案設定中找到這些值。
-        // apiKey 是不正確的，這很可能是您的應用程式無法正常運作的原因。
+        // 安全性警告：將 API 金鑰直接寫在前端程式碼中存在風險。
+        // 在生產環境中，建議使用更安全的方法，例如環境變數或後端代理。
         const firebaseConfig = {
-          apiKey: "AIzaSyAYefDi9Njm_hsJavgup05WyxhPlVIGlAA", // <-- 請替換為您的 API 金鑰
+          apiKey: "AIzaSyAYefDi9Njm_hsJavgup05WyxhPlVIGlAA",
           authDomain: "curly-happiness.firebaseapp.com",
           projectId: "curly-happiness",
           storageBucket: "curly-happiness.firebasestorage.app",
-          messagingSenderId: "556696470832",
-          appId: "1:556696470e7db40f3f5cc8c34f5",
-          databaseURL: "https://curly-happiness-default-rtdb.firebaseio.com"
+          messagingSenderId: "556696470832"
         };
 
         const app = initializeApp(firebaseConfig);
